@@ -19,6 +19,10 @@ namespace CopyFilesWPF.Model
         public bool CancelFlag = false;
         public ManualResetEvent PauseFlag = new(true);
 
+        //внедрение CancellationToken
+        public CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+        private CancellationToken token;
+
         public FileCopier(
             FilePath filePath,
             ProgressChangeDelegate onProgressChange,
@@ -29,14 +33,15 @@ namespace CopyFilesWPF.Model
             OnComplete += onComplete;
             _filePath = filePath;
             _gridPanel = gridPanel;
+            //
+            token = cancellationTokenSource.Token;
         }
 
         public void CopyFile()
         {
             byte[] buffer = new byte[1024 * 1024];
-            bool isCopy = true; // переделать решение на использование CancellationToken
-
-            while (isCopy)
+            //// переделать решение на использование CancellationToken
+            while (!token.IsCancellationRequested)
             {
                 try
                 {
@@ -53,36 +58,37 @@ namespace CopyFilesWPF.Model
                             destination.Write(buffer, 0, currentBlockSize);
                             OnProgressChanged(persentage, ref CancelFlag, _gridPanel);
 
-                            if(CancelFlag == true)
+                            if(token.IsCancellationRequested)
                             {
                                 File.Delete(_filePath.PathTo);
-                                isCopy = false;
                                 break;
                             }
 
-                            CancelFlag = false; // переделать решение на использование CancellationToken
-                            PauseFlag.WaitOne(Timeout.Infinite); // переделать на thread suspend
+                            PauseFlag.WaitOne(Timeout.Infinite); // переделать на thread suspend // ошибка что не поддерживается системой
                         }
                     }
-                    isCopy = false;
+                    // освобождаем после завершения
+                    cancellationTokenSource.Cancel();
+                    cancellationTokenSource.Dispose();
+
                 }
                 catch (IOException error)
                 {
+                    bool finished;
                     // порефакторить код ниже
-                    if (!CancelFlag)
+                    if (!token.IsCancellationRequested)
                     {
                         var result = MessageBox.Show(error.Message + " Replace?", "Replace?", MessageBoxButton.YesNo, MessageBoxImage.Question);
-                        isCopy = result == MessageBoxResult.Yes;
+                        finished = result == MessageBoxResult.Yes;
 
-                        if (isCopy)
+                        if (finished)
                         {
                             File.Delete(_filePath.PathTo);
                         }
                     }
                     else
                     {
-                        var result = MessageBox.Show(error.Message + " Copying was canceled!", "Cancel", MessageBoxButton.OK, MessageBoxImage.Asterisk);
-                        isCopy = false;
+                        var result = MessageBox.Show(error.Message + " Copying was canceled!", "Cancel", MessageBoxButton.OK, MessageBoxImage.Asterisk);           
                         File.Delete(_filePath.PathTo);
                     }
                 }

@@ -87,7 +87,7 @@ namespace CopyFilesWPF.Presenter
         {
             ((Button)sender).IsEnabled = false;
             if(((Button)sender)!.Content.ToString()!.Equals("Cancel")) {
-                ((((Button)sender).Tag as Grid)!.Tag as FileCopier)!.CancelFlag = true;
+                ((((Button)sender).Tag as Grid)!.Tag as FileCopier)!.cancellationTokenSource.Cancel();
             }
             else if (((Button)sender)!.Content.ToString()!.Equals("Pause"))
             {
